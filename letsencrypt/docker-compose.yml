@@ -1,1 +1,16 @@
+version: '3.7'
+services:
+  le-apache:
+    container_name: 'le-apache'
+    image: lets-encrypt-apache:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./httpd.conf:/etc/apache2/httpd.conf
+      - ./html:/var/www/localhost/htdocs/
+    networks:
+      - docker-network
 
+networks:
+  docker-network:
+    driver: bridge
