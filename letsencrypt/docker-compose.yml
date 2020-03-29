@@ -10,6 +10,8 @@ services:
       - ./html:/var/www/localhost/htdocs/
     networks:
       - docker-network
+    environment: 
+      - server_name=magicpony.de
 networks:
   docker-network:
     driver: bridge

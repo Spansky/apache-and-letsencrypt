@@ -11,6 +11,8 @@ services:
       - /docker-volumes2/data/letsencrypt:/data/letsencrypt
     networks:
       - docker-network
+    environment: 
+      - server_name=magicpony.de
 networks:
   docker-network:
     driver: bridge
