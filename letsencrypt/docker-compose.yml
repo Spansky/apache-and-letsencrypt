@@ -10,7 +10,6 @@ services:
       - ./html:/var/www/localhost/htdocs/
     networks:
       - docker-network
-
 networks:
   docker-network:
     driver: bridge
