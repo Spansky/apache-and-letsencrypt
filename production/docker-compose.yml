@@ -1,6 +1,6 @@
 version: '3.7'
 services:
-  le-apache:
+  productive-apache:
     container_name: 'productive-apache'
     image: productive-apache:latest
     ports:
