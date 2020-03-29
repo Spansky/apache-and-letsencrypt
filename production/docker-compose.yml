@@ -8,6 +8,7 @@ services:
     volumes:
       - ./httpd.conf:/etc/apache2/httpd.conf
       - ./html:/var/www/localhost/htdocs/
+      - /docker-volumes2/data/letsencrypt:/data/letsencrypt
     networks:
       - docker-network
 networks:
