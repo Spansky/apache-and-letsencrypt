@@ -13,7 +13,8 @@ services:
       - /docker-volumes2/etc/letsencrypt/live/magicpony.de/cert.pem:/etc/letsencrypt/live/magicpony.de/cert.pem
       - /docker-volumes2/etc/letsencrypt/live/magicpony.de/fullchain.pem:/etc/letsencrypt/live/magicpony.de/fullchain.pem
       - /docker-volumes2/etc/letsencrypt/live/magicpony.de/privkey.pem:/etc/letsencrypt/live/magicpony.de/privkey.pem
-    networks:
+      - /home/leon/logs-of-apache/test1/:/var/www/logs/
+      networks:
       - docker-network
     environment: 
       - server_name=magicpony.de
