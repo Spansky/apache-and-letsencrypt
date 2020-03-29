@@ -9,6 +9,8 @@ services:
       - ./httpd.conf:/etc/apache2/httpd.conf
       - ./html:/var/www/localhost/htdocs/
       - /docker-volumes2/data/letsencrypt:/data/letsencrypt
+      - /docker-volumes2/etc/letsencrypt/live/magicpony.de/fullchain.pem:/etc/letsencrypt/live/magicpony.de/fullchain.pem
+      - /docker-volumes2/etc/letsencrypt/live/magicpony.de/privkey.pem:/etc/letsencrypt/live/magicpony.de/privkey.pem
     networks:
       - docker-network
     environment: 
