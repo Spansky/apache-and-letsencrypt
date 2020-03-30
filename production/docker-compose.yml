@@ -9,10 +9,9 @@ services:
     volumes:
       - ./httpd.conf:/etc/apache2/httpd.conf
       - ./html:/var/www/localhost/htdocs/
-      - ./dh-param/dhparam-2048.pem:/etc/ssl/certs/dhparam-2048.pem
-      - /docker-volumes2/etc/letsencrypt/live/magicpony.de/cert.pem:/etc/letsencrypt/live/magicpony.de/cert.pem
-      - /docker-volumes2/etc/letsencrypt/live/magicpony.de/fullchain.pem:/etc/letsencrypt/live/magicpony.de/fullchain.pem
-      - /docker-volumes2/etc/letsencrypt/live/magicpony.de/privkey.pem:/etc/letsencrypt/live/magicpony.de/privkey.pem
+      - /docker-volumes/etc/letsencrypt/live/magicpony.de/cert.pem:/etc/letsencrypt/live/magicpony.de/cert.pem
+      - /docker-volumes/etc/letsencrypt/live/magicpony.de/fullchain.pem:/etc/letsencrypt/live/magicpony.de/fullchain.pem
+      - /docker-volumes/etc/letsencrypt/live/magicpony.de/privkey.pem:/etc/letsencrypt/live/magicpony.de/privkey.pem
       - /home/leon/logs/test1/:/var/www/logs/
     networks:
       - docker-network
