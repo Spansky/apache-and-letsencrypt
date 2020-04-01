@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Use Apache and SSL/Let's Encrypt in Docker</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.10.2/dist/katex.min.css" integrity="sha384-yFRtMMDnQtDRO8rLpMIKrtPCD5jdktao2TV19YiZYWMDkUR5GQZR/NOVTdquEx1j" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+        <link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <style>
+.task-list-item { list-style-type: none; } .task-list-item-checkbox { margin-left: -20px; vertical-align: middle; }
+</style>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        
+        <script src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+    </head>
+    <body class="vscode-light">
+        <h1 id="use-apache-and-ssllets-encrypt-in-docker">Use Apache and SSL/Let's Encrypt in Docker</h1>
+<p>This article is about:</p>
+<ul>
+<li>setting up an Apache Webserver in an Alpine Linux Docker Container</li>
+<li>setting up a SSL encryption via Let's Encrypt</li>
+</ul>
+<p>Requirements:</p>
+<ul>
+<li>Basic understanding of docker and docker-compose</li>
+<li>Basic understanding of Apache</li>
+</ul>
+<p>Structure of Blog Article:</p>
+<ol>
+<li>My Motivation for Docker usage and this article</li>
+<li>Temporary Apache Container for handshaking with Let's Encrypt, a free SSL certificate service</li>
+<li>Getting the Certificates via Certbot Docker Container</li>
+<li>Spinning up the Production Apache Server</li>
+</ol>
+<h2 id="1-motivation">1) Motivation</h2>
+<p>For my website consisting of a blog and some webapplications I would like to migrate the existing application logic and static files into seperated docker containers to    <strong>streamline the development process, the testing and the operation of the production system</strong>     Docker allows to isolate parts of my website into decoupled units which can be treated seperately from each other. I would then be able to try out smaller technical adjustments on specific parts, such as   <strong>security adjustments</strong>  . In the past it happened that e.g. a change of filters in mod_security lead to negative sideeffects on a app that I host (with target of 24/7 availablity), whereas the setting was intended to harden the blogging part of my website. One of the   huge advantages that comes with Microservices and Dockerization is that you are much more flexible in your sourcing decisions. In my private context this means I can today host my website in the <strong>Tencent Cloud</strong>, but would be able to easily shift a single service or the whole website to another supplier, such as <strong>Amazon Web Services</strong> when I move back to Europe.</p>
+<p>I found <a href="https://www.humankode.com/ssl/how-to-set-up-free-ssl-certificates-from-lets-encrypt-using-docker-and-nginx">this perfect Article on setting up everything for Nginx</a> . The motivation to write this article is mainly driven for documentation reasons. What's more: It seems like there is no tutorial for doing such kind of steps for Apache based webservers. I suggest you read through his article for the background information and just come back here, if you want to set up everything for Apache.</p>
+<h2 id="2-temporary-apache">2) Temporary Apache</h2>
+<p>The temporary Apache has the only purpose for exposing a temporary website over http / port 80. This website will be used by the certbot and the triggered ACME-Challenge later. For preparing it you need those files:</p>
+<p><a href="https://github.com/Spansky/apache-and-letsencrypt">Better download the files from github, if you want to get your hands dirty. You will find the latest files there. Feel free to submit pull requests.</a></p>
+<details><summary>index.html (click to see the content)</summary>
+<pre><code class="language-html"><div><span class="hljs-meta">&lt;!DOCTYPE html&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">html</span> <span class="hljs-attr">lang</span>=<span class="hljs-string">"en"</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">head</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">charset</span>=<span class="hljs-string">"UTF-8"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">name</span>=<span class="hljs-string">"viewport"</span> <span class="hljs-attr">content</span>=<span class="hljs-string">"width=device-width, initial-scale=1.0"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">title</span>&gt;</span>Temporary Webserver<span class="hljs-tag">&lt;/<span class="hljs-name">title</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">style</span>&gt;</span><span class="css">
+        <span class="hljs-selector-tag">body</span> {
+            <span class="hljs-attribute">margin</span>: <span class="hljs-number">0</span>;
+            <span class="hljs-attribute">width</span>: <span class="hljs-number">100%</span>;
+            <span class="hljs-attribute">display</span>: flex;
+            <span class="hljs-attribute">flex-direction</span>: column;
+            <span class="hljs-attribute">justify-content</span>: center;
+            <span class="hljs-attribute">align-content</span>: center;
+            <span class="hljs-attribute">height</span>: <span class="hljs-number">100vh</span>;
+            <span class="hljs-attribute">align-items</span>: center;
+        }
+    </span><span class="hljs-tag">&lt;/<span class="hljs-name">style</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">head</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">body</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">h1</span>&gt;</span>This is the webserver for the Acme-Challenge<span class="hljs-tag">&lt;/<span class="hljs-name">h1</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">body</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">html</span>&gt;</span>
+</div></code></pre>
+</details>
+<details><summary>Dockerfile (click to see the content)</summary>
+<pre><code class="language-Dockerfile"><div><span class="hljs-keyword">FROM</span> alpine:latest
+<span class="hljs-keyword">LABEL</span><span class="bash"> author=<span class="hljs-string">"Leon Sczepansky"</span></span>
+<span class="hljs-keyword">ENV</span> server_name=localhost
+<span class="hljs-keyword">RUN</span><span class="bash"> apk add --no-cache apache2</span>
+<span class="hljs-keyword">RUN</span><span class="bash"> rm -rf /var/www/localhost/cgi-bin/</span>
+<span class="hljs-keyword">CMD</span><span class="bash"> <span class="hljs-built_in">exec</span> /usr/sbin/httpd -D FOREGROUND -f /etc/apache2/httpd.conf</span>
+</div></code></pre>
+</details>
+<details><summary>Configfile httpd.conf (click to see the content)</summary>
+<pre><code class="language-plaintext"><div>ServerRoot /var/www
+
+LoadModule mpm_prefork_module modules/mod_mpm_prefork.so
+LoadModule authn_file_module modules/mod_authn_file.so
+LoadModule authn_core_module modules/mod_authn_core.so
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule authz_groupfile_module modules/mod_authz_groupfile.so
+LoadModule authz_user_module modules/mod_authz_user.so
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule access_compat_module modules/mod_access_compat.so
+LoadModule auth_basic_module modules/mod_auth_basic.so
+LoadModule reqtimeout_module modules/mod_reqtimeout.so
+LoadModule filter_module modules/mod_filter.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule log_config_module modules/mod_log_config.so
+LoadModule env_module modules/mod_env.so
+LoadModule headers_module modules/mod_headers.so
+LoadModule setenvif_module modules/mod_setenvif.so
+LoadModule version_module modules/mod_version.so
+LoadModule unixd_module modules/mod_unixd.so
+LoadModule status_module modules/mod_status.so
+LoadModule autoindex_module modules/mod_autoindex.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule alias_module modules/mod_alias.so
+LoadModule negotiation_module modules/mod_negotiation.so
+LoadModule rewrite_module modules/mod_rewrite.so
+
+Listen 80
+
+&lt;IfModule unixd_module&gt;
+    User apache
+    Group apache
+&lt;/IfModule&gt;
+
+ServerName ${server_name}
+ServerAdmin leon.sczepansky@example.org
+ServerTokens Prod
+ServerSignature Off
+
+DocumentRoot  "/var/www/localhost/htdocs"
+
+&lt;Directory /.well-known/acme-challenge&gt;
+        Allow from all
+&lt;/Directory&gt;
+
+&lt;Directory "/var/www/localhost/htdocs"&gt;
+    Options Indexes FollowSymLinks
+    AllowOverride None
+    Require all granted
+&lt;/Directory&gt;
+
+ErrorLog                                logs/error.log
+LogLevel info
+</div></code></pre>
+</details>
+<details><summary>Composefile docker-compose.yml (click to see the content)</summary>
+<pre><code class="language-plaintext"><div>version: '3.7'
+services:
+  le-apache:
+    container_name: 'le-apache'
+    image: lets-encrypt-apache:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./httpd.conf:/etc/apache2/httpd.conf
+      - ./html:/var/www/localhost/htdocs/
+    networks:
+      - docker-network
+networks:
+  docker-network:
+    driver: bridge
+</div></code></pre>
+</details>
+<p>The folder tree should look like this:</p>
+<pre><code class="language-bash"><div>├── letsencrypt
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   ├── html
+│   │   └── index.html
+│   └── httpd.conf
+...
+</div></code></pre>
+<p>For the following commands I assume you run them while beeing in the <code>./letsencrypt</code> folder.</p>
+<ul>
+<li>Build the webserver via <code>docker build -t lets-encrypt-apache .</code></li>
+<li>Start it via <code>docker-compose up -d</code></li>
+</ul>
+<p><img src="file:////Users/leon/Leons Projekte/apache-and-letsencrypt/testserver-apache-port-80acme-challenge.png" alt=""></p>
+<h2 id="3-getting-the-certificates">3) Getting the Certificates</h2>
+<ul>
+<li>When your webserver is running, start the certbot docker (from dockerhub)</li>
+</ul>
+<pre><code class="language-bash"><div>sudo docker run -it --rm \
+-v /docker-volumes/etc/letsencrypt:/etc/letsencrypt \
+-v /docker-volumes/var/lib/letsencrypt:/var/lib/letsencrypt \
+-v <span class="hljs-variable">$PWD</span>/html:/data/letsencrypt \
+-v /docker-volumes/var/<span class="hljs-built_in">log</span>/letsencrypt:/var/<span class="hljs-built_in">log</span>/letsencrypt \
+certbot/certbot \
+certonly --webroot \
+--email leon.sczepansky@example.org --agree-tos --no-eff-email \
+--webroot-path=/data/letsencrypt \
+-d magicpony.de -d www.magicpony.de
+</div></code></pre>
+<ul>
+<li>After you got the success message in your command line's output you stop the temporary apache via <code>docker-compose down</code></li>
+</ul>
+<h2 id="4-spinning-up-the-production-apache-server">4) Spinning up the Production Apache Server</h2>
+<p>On the same hierarchy level like the letsencrypt folder I will now create a folder for the productive Apache Server (as also suggested in the mentioned nginx article).</p>
+<pre><code><code><div>.
+├── letsencrypt/...
+├── production
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   ├── html
+│   │   └── index.html
+│   └── httpd.conf
+</div></code></code></pre>
+<p>Whereras the temporary server just had the purpose for getting the certificates, the production server will serve the website. It will run 24/7 and uses HTTPS only.</p>
+<h3 id="files">Files</h3>
+<details><summary>Dockerfile</summary>
+<pre><code><code><div>FROM alpine:latest
+LABEL author=&quot;Leon Sczepansky&quot;
+ENV server_name=localhost
+RUN apk add --no-cache apache2-ssl
+RUN rm -rf /var/www/localhost/cgi-bin/
+CMD exec /usr/sbin/httpd -D FOREGROUND -f /etc/apache2/httpd.conf
+</div></code></code></pre>
+</details>
+<details><summary>docker-compose.yml</summary>
+<pre><code><code><div>version: '3.7'
+services:
+  productive-apache:
+    container_name: 'productive-apache'
+    image: productive-apache:latest
+    ports:
+      - &quot;80:80&quot;
+      - &quot;443:443&quot;
+    volumes:
+      - ./httpd.conf:/etc/apache2/httpd.conf
+      - ./html:/var/www/localhost/htdocs/
+      - /docker-volumes/etc/letsencrypt/live/magicpony.de/cert.pem:/etc/letsencrypt/live/magicpony.de/cert.pem
+      - /docker-volumes/etc/letsencrypt/live/magicpony.de/fullchain.pem:/etc/letsencrypt/live/magicpony.de/fullchain.pem
+      - /docker-volumes/etc/letsencrypt/live/magicpony.de/privkey.pem:/etc/letsencrypt/live/magicpony.de/privkey.pem
+    networks:
+      - docker-network
+    environment: 
+      - server_name=magicpony.de
+networks:
+  docker-network:
+    driver: bridge
+</div></code></code></pre>
+</details>
+<details><summary>Httpd.conf</summary>
+<pre><code><code><div>ServerRoot /var/www
+
+LoadModule mpm_prefork_module modules/mod_mpm_prefork.so
+LoadModule authn_file_module modules/mod_authn_file.so
+LoadModule authn_core_module modules/mod_authn_core.so
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule authz_groupfile_module modules/mod_authz_groupfile.so
+LoadModule authz_user_module modules/mod_authz_user.so
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule access_compat_module modules/mod_access_compat.so
+LoadModule auth_basic_module modules/mod_auth_basic.so
+LoadModule reqtimeout_module modules/mod_reqtimeout.so
+LoadModule filter_module modules/mod_filter.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule log_config_module modules/mod_log_config.so
+LoadModule env_module modules/mod_env.so
+LoadModule headers_module modules/mod_headers.so
+LoadModule setenvif_module modules/mod_setenvif.so
+LoadModule version_module modules/mod_version.so
+LoadModule unixd_module modules/mod_unixd.so
+LoadModule status_module modules/mod_status.so
+LoadModule autoindex_module modules/mod_autoindex.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule alias_module modules/mod_alias.so
+LoadModule negotiation_module modules/mod_negotiation.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule logio_module modules/mod_logio.so
+
+Listen 80
+
+&lt;IfModule unixd_module&gt;
+    User apache
+    Group apache
+&lt;/IfModule&gt;
+
+ServerName ${server_name}
+ServerAdmin leon.sczepansky@example.org
+ServerTokens Prod
+ServerSignature Off
+
+DocumentRoot  &quot;/var/www/localhost/htdocs&quot;
+
+IncludeOptional                         /etc/apache2/conf.d/*.conf
+
+AddDefaultCharset UTF-8
+EnableSendfile on
+
+FileETag None
+TraceEnable off
+Header edit Set-Cookie ^(.*)$ $1;HttpOnly;Secure
+Header always append X-Frame-Options SAMEORIGIN
+Header set X-XSS-Protection &quot;1; mode=block&quot;
+RewriteEngine On
+RewriteCond %{THE_REQUEST} !HTTP/1.1$
+RewriteRule .* - [F]
+Timeout 60
+
+&lt;IfModule dir_module&gt;
+    DirectoryIndex index.html
+&lt;/IfModule&gt;
+&lt;Files &quot;.ht*&quot;&gt;
+    Require all denied
+&lt;/Files&gt;
+
+&lt;IfModule log_config_module&gt;
+    LogFormat &quot;%h %l %u %t \&quot;%r\&quot; %&gt;s %b \&quot;%{Referer}i\&quot; \&quot;%{User-Agent}i\&quot;&quot; combined
+    LogFormat &quot;%h %l %u %t \&quot;%r\&quot; %&gt;s %b&quot; common
+
+    &lt;IfModule logio_module&gt;
+      LogFormat &quot;%h %l %u %t \&quot;%r\&quot; %&gt;s %b \&quot;%{Referer}i\&quot; \&quot;%{User-Agent}i\&quot; %I %O&quot; combinedio
+    &lt;/IfModule&gt;
+    CustomLog &quot;logs/access_log&quot; combined
+&lt;/IfModule&gt;
+
+ErrorLog                                logs/error.log
+LogLevel info
+
+&lt;VirtualHost *:80&gt;
+    DocumentRoot                        &quot;/var/www/localhost/htdocs&quot;
+    ServerName                          ${server_name}
+    ServerAlias                         www.${server_name}
+
+    Alias &quot;/.well-known/acme-challenge&quot; &quot;/data/letsencrypt&quot;
+
+    &lt;Directory &quot;/data/letsencrypt&quot;&gt;
+        Options Indexes FollowSymLinks MultiViews
+        Require all granted
+    &lt;/Directory&gt;
+
+    &lt;Directory /&gt;
+        AllowOverride none
+        Options -Indexes -Includes
+        Require all granted
+        &lt;LimitExcept GET POST HEAD&gt;
+            deny from all
+        &lt;/LimitExcept&gt;
+    &lt;/Directory&gt;
+
+    &lt;Directory &quot;/var/www/localhost/htdocs&quot;&gt;
+        AllowOverride None
+        Options -Indexes -Includes
+        Require all granted
+    &lt;/Directory&gt;
+
+    &lt;Location /status &gt;
+        SetHandler server-status
+    &lt;/Location&gt;
+
+    &lt;Location / &gt;
+        Redirect / https://${server_name}/
+    &lt;/Location&gt;
+&lt;/VirtualHost&gt;
+
+&lt;IfModule mod_ssl.c&gt;
+    &lt;VirtualHost *:443&gt;
+        DocumentRoot                        &quot;/var/www/localhost/htdocs&quot;
+        ServerName                          ${server_name}
+        ServerAlias                         www.${server_name}
+
+        &lt;Directory /&gt;
+            AllowOverride none
+            Options -Indexes -Includes
+            Require all granted
+            &lt;LimitExcept GET POST HEAD&gt;
+                deny from all
+            &lt;/LimitExcept&gt;
+        &lt;/Directory&gt;
+
+        &lt;Directory &quot;/var/www/localhost/htdocs&quot;&gt;
+            AllowOverride None
+            Options -Indexes -Includes
+            Require all granted
+        &lt;/Directory&gt;
+
+        &lt;Location /status &gt;
+            SetHandler server-status
+        &lt;/Location&gt;
+    
+        ErrorLog                                logs/error.log
+        LogLevel info
+        CustomLog &quot;logs/access_log&quot; combined
+
+        SSLEngine On
+        SSLProtocol                         all -SSLv2 -SSLv3
+        SSLCipherSuite                      ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES256-SHA:ECDHE-ECDSA-DES-CBC3-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS
+        SSLHonorCipherOrder                 on
+        SSLOptions                          +StrictRequire
+        SSLCertificateFile                  /etc/letsencrypt/live/${server_name}/cert.pem
+        SSLCertificateKeyFile               /etc/letsencrypt/live/${server_name}/privkey.pem
+        SSLCertificateChainFile             /etc/letsencrypt/live/${server_name}/fullchain.pem
+    &lt;/VirtualHost&gt;
+&lt;/IfModule&gt;
+</div></code></code></pre>
+</details>
+<h3 id="commands">Commands</h3>
+<ul>
+<li>Lets build the image for the productive apache <code>docker build -t productive-apache .</code></li>
+<li>Testrun it via <code>docker-compose up -d</code> -&gt; check if both ports are working correctly</li>
+</ul>
+<p><img src="file:////Users/leon/Leons Projekte/apache-and-letsencrypt/production-server-port-80-https.png" alt=""></p>
+<ul>
+<li>Shut down via <code>docker-compose down</code> (if needed)</li>
+<li>!!! Don't forget to set up the renewal cron-job as mentioned in the nginx article.</li>
+</ul>
+<h2 id="further-material">Further Material</h2>
+<ul>
+<li><a href="https://github.com/Spansky/apache-and-letsencrypt">https://github.com/Spansky/apache-and-letsencrypt</a> (Github Repository)</li>
+<li><a href="https://www.humankode.com/ssl/how-to-set-up-free-ssl-certificates-from-lets-encrypt-using-docker-and-nginx">https://www.humankode.com/ssl/how-to-set-up-free-ssl-certificates-from-lets-encrypt-using-docker-and-nginx</a> (Tutorial for Nginx/Let's Encrypt in Docker)</li>
+</ul>
+
+    </body>
+    </html>
