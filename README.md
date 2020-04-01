@@ -405,7 +405,7 @@ LogLevel info
 * Lets build the image for the productive apache `docker build -t productive-apache .`
 * Testrun it via `docker-compose up -d` -> check if both ports are working correctly
 
-![](production-server-port-80-https.png)
+![](production-server-port-80-443-https.png)
 
 * Shut down via `docker-compose down` (if needed)
 * !!! Don't forget to set up the renewal cron-job as mentioned in the nginx article. 
