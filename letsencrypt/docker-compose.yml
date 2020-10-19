@@ -3,6 +3,8 @@ services:
   le-apache:
     container_name: 'le-apache'
     image: lets-encrypt-apache:latest
+    build:
+      context: .
     ports:
       - "80:80"
     volumes:

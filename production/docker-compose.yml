@@ -3,6 +3,8 @@ services:
   productive-apache:
     container_name: 'productive-apache'
     image: productive-apache:latest
+    build:
+      context: .
     ports:
       - "80:80"
       - "443:443"
